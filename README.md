@@ -1,9 +1,8 @@
 # GISAID EpiCoV Downloader
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4323561.svg)](https://doi.org/10.5281/zenodo.4323561)
-[![gisaid](https://github.com/poeli/EpiCoV_downloader/workflows/gisaid/badge.svg)](https://github.com/poeli/EpiCoV_downloader/actions?query=workflow%3Agisaid) 
 
-This is a GISAID downloader to retrieve all EpiCoV sequences and the table. The script utilizes Selenium to acess the GISAID website through a Firefox webdriver.
+This is an updated version of GISAID downloader to retrieve all EpiCoV sequences and the table. The script utilizes Selenium to acess the GISAID website through a Firefox webdriver.
 
 > **_WARNING:_** By using this software you agree GISAID's [Terms of Use](https://www.gisaid.org/DAA) and reaffirm your understanding of these terms.
 
@@ -18,22 +17,43 @@ $ conda env create -f environment.yml
 $ conda activate gisaid
 ```
 
-## Example
+:warning: Download [geckodriver](https://github.com/mozilla/geckodriver/releases) and put it in the same directory as this script.
 
-The username (-u) and password (-p) are required arguments for the script.
-If you do not specify a range of submission and/or collection dates, the nextfasta and nextmeta provided in GISAID/EpiCoV/Downloads will be downloaded.
+## Example Run Command:
+```bash
+python gisaid_EpiCoV_downloader.py -u '<username>' -p '<password>' -o 'downloads/' -ht 'Human' -ss '2023-04-18' -se '2023-04-19' -voc 'omicron' -cg -hc -nnd
+```
 
-Downloading nextfasta and nextmeta provided in GISAID/EpiCoV/Downloads:
+## Example Logs:
 
-`./gisaid_EpiCoV_downloader.py -u $UNAME -p $PASSWD`
+```txt
+2023-04-19 17:09 [INFO] GISAID EpiCoV Utility v21.05.10
+2023-04-19 17:09 [INFO] Opening browser...
+2023-04-19 17:09 [INFO] Opening website GISAID...
+2023-04-19 17:09 [INFO] GISAID Initiative
+2023-04-19 17:09 [INFO] Logining to GISAID...
+2023-04-19 17:09 [INFO] Navigating to EpiCoV...
+2023-04-19 17:09 [INFO] Searching in EpiCoV...
+2023-04-19 17:09 [INFO] Setting host...
+2023-04-19 17:09 [INFO] Setting submissions start date...
+2023-04-19 17:09 [INFO] Setting variant...
+2023-04-19 17:09 [INFO] Selected VOC Omicron GRA (B.1.1.529+BA.*) first detected in Botswana/Hong Kong/South Africa...
+2023-04-19 17:09 [INFO] Complete genome only...
+2023-04-19 17:09 [INFO] High coverage only...
+2023-04-19 17:10 [INFO] Selecting Total: 176 viruses...
+2023-04-19 17:10 [INFO] Downloading sequences for selected genomes...
+2023-04-19 17:10 [INFO] Switching to data selection iframe...
+2023-04-19 17:10 [INFO] Selecting FASTA files...
+2023-04-19 17:10 [INFO] Clicking download button...
+2023-04-19 17:10 [INFO] Switching back to default page...
+2023-04-19 17:10 [INFO] Switching to agreement iframe...
+2023-04-19 17:10 [INFO] Accepting terms of use...
+2023-04-19 17:10 [INFO] Clicking download button again...
+2023-04-19 17:10 [INFO] Switching back to default page...
+2023-04-19 17:10 [INFO] Downloaded to gisaid_hcov-19_2023_04_19_14.fasta
+2023-04-19 17:10 [INFO] Completed.
+```
 
-Downloading sequences and acknowledgement table for high quality genomes collected between 2019-12-26 and 2019-12-30:
-
-`./gisaid_EpiCoV_downloader.py -u $UNAME -p $PASSWD -cs 2019-12-26 -ce 2019-12-30 -hc -le -cg`
-
-Downloading sequences and acknowledgement table for genomes collected between from the USA:
-
-`./gisaid_EpiCoV_downloader.py -u $UNAME -p $PASSWD -ss 2019-12-26 -se 2019-12-30 -l USA`
 
 ## Usage
 ```bash
@@ -63,9 +83,12 @@ optional arguments:
   -ce [YYYY-MM-DD], --colend [YYYY-MM-DD]
                         collection ends date
   -ss [YYYY-MM-DD], --substart [YYYY-MM-DD]
-                        submitssion starts date
+                        submissions start date
   -se [YYYY-MM-DD], --subend [YYYY-MM-DD]
-                        submitssion ends date
+                        submitssions end date
+  -voc [STR], --variant [STR]
+                        Variant of concern. One of:
+                        ['', 'alpha', 'beta', 'gamma', 'delta', 'omicron']
   -cg, --complete       complete genome only
   -hc, --highcoverage   high coverage only
   -le, --lowcoverageExcl

@@ -17,7 +17,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support import expected_conditions as EC
 
 logging.basicConfig(
@@ -39,7 +41,7 @@ def parse_params():
                    help="GISAID password")
 
     p.add_argument('-o', '--outdir',
-                   metavar='[STR]', type=str, required=False, default=None,
+                   metavar='[STR]', type=str, required=True, default='downloads/',
                    help="Output directory")
 
     p.add_argument('-l', '--location',
@@ -60,11 +62,15 @@ def parse_params():
 
     p.add_argument('-ss', '--substart',
                    metavar='[YYYY-MM-DD]', type=str, required=False, default=None,
-                   help="submitssion starts date")
+                   help="submissions start date")
 
     p.add_argument('-se', '--subend',
                    metavar='[YYYY-MM-DD]', type=str, required=False, default=None,
-                   help="submitssion ends date")
+                   help="submitssions end date")
+    
+    p.add_argument('-voc', '--variant',
+                metavar='[STR]', type=str, required=False, default='',
+                help="Specify a variant of concern. Default is empty (all).")
 
     p.add_argument('-cg', '--complete',
                    action='store_true', help='complete genome only')
@@ -101,8 +107,8 @@ def parse_params():
                    action='store_true', help='print version number.')
 
     args_parsed = p.parse_args()
-    if not args_parsed.outdir:
-        args_parsed.outdir = os.getcwd()
+    if not os.path.exists(args_parsed.outdir):
+        os.makedirs(args_parsed.outdir)
     return args_parsed
 
 
@@ -117,6 +123,7 @@ def download_gisaid_EpiCoV(
         ce,        # collection end date
         ss,        # submission start date
         se,        # submission end date
+        voc,       # variant of concern
         cg,        # complete genome only
         hc,        # high coverage only
         le,        # low coverage excluding
@@ -155,23 +162,23 @@ def download_gisaid_EpiCoV(
         pass
 
     logging.info("Opening browser...")
-    profile = webdriver.FirefoxProfile()
-    profile.set_preference("browser.download.folderList", 2)
-    profile.set_preference("browser.download.manager.showWhenStarting", False)
-    profile.set_preference("browser.download.dir", wd)
-    profile.set_preference(
+
+    options=Options()
+    options.set_preference("browser.download.folderList", 2)
+    options.set_preference("browser.download.manager.showWhenStarting", False)
+    options.set_preference("browser.download.dir", wd)
+    options.set_preference(
         "browser.helperApps.neverAsk.saveToDisk", mime_types)
-    profile.set_preference(
+    options.set_preference(
         "plugin.disable_full_page_plugin_for_types", mime_types)
-    profile.set_preference("pdfjs.disabled", True)
-    profile.update_preferences()
+    options.set_preference("pdfjs.disabled", True)
 
-    options = Options()
     if not normal:
-        options.headless = True
+        options.add_argument('-headless')
 
-    driver = webdriver.Firefox(
-        firefox_profile=profile, options=options, firefox_binary=ffbin)
+    service = Service(r'./geckodriver')
+    # Download geckodriver from https://github.com/mozilla/geckodriver/releases and put it in the same directory as this script
+    driver = webdriver.Firefox(service=service, options=options, firefox_binary=ffbin)
 
     # driverwait
     driver.implicitly_wait(30)
@@ -185,18 +192,18 @@ def download_gisaid_EpiCoV(
     assert 'GISAID' in driver.title
 
     # login
-    logging.info("Logining to GISAID...")
-    username = driver.find_element_by_name('login')
+    logging.info("Loggining into GISAID...")
+    username = driver.find_element(By.NAME, 'login')
     username.send_keys(uname)
-    password = driver.find_element_by_name('password')
+    password = driver.find_element(By.NAME, 'password')
     password.send_keys(upass)
     driver.execute_script("return doLogin();")
 
     waiting_sys_timer(wait)
 
-    # navigate to EpiFlu
+    # navigate to EpiCoV
     logging.info("Navigating to EpiCoV...")
-    epicov_tab = driver.find_element_by_xpath("//div[@id='main_nav']//li[3]/a")
+    epicov_tab = driver.find_element(By.XPATH, "//div[@id='main_nav']//li[3]/a")
     epicov_tab.click()
 
     waiting_sys_timer(wait)
@@ -217,7 +224,7 @@ def download_gisaid_EpiCoV(
         logging.info("Downloading metadata...")
         driver.switch_to.frame(iframe_dl)
         waiting_sys_timer(wait)
-        dl_button = driver.find_element_by_xpath('//div[contains(text(), "metadata")]')
+        dl_button = driver.find_element(By.XPATH, '//div[contains(text(), "metadata")]')
         dl_button.click()
         waiting_sys_timer(wait)
         # waiting for REMINDER
@@ -226,7 +233,7 @@ def download_gisaid_EpiCoV(
         waiting_sys_timer(wait)
         # agree terms and conditions
         logging.info(" -- agreeing terms and conditions")
-        checkbox = driver.find_element_by_xpath('//input[@class="sys-event-hook"]')
+        checkbox = driver.find_element(By.XPATH, '//input[@class="sys-event-hook"]')
         checkbox.click()
         waiting_sys_timer(wait)
         # click download button
@@ -238,7 +245,7 @@ def download_gisaid_EpiCoV(
         # Opening Firefox downloading window
         driver.switch_to.default_content()
         fn = wait_downloaded_filename(wait, driver, 600)
-        logging.info(f" -- downloaded to {fn}.")
+        logging.info(f" -- downloaded to {fn}")
         
         waiting_sys_timer(wait)
 
@@ -256,7 +263,7 @@ def download_gisaid_EpiCoV(
         waiting_sys_timer(wait)
         # agree terms and conditions
         logging.info(" -- agreeing terms and conditions")
-        checkbox = driver.find_element_by_xpath('//input[@class="sys-event-hook"]')
+        checkbox = driver.find_element(By.XPATH, '//input[@class="sys-event-hook"]')
         checkbox.click()
         waiting_sys_timer(wait)
         # click download button
@@ -286,7 +293,7 @@ def download_gisaid_EpiCoV(
         waiting_sys_timer(wait)
         # agree terms and conditions
         logging.info(" -- agreeing terms and conditions")
-        checkbox = driver.find_element_by_xpath('//input[@class="sys-event-hook"]')
+        checkbox = driver.find_element(By.XPATH, '//input[@class="sys-event-hook"]')
         checkbox.click()
         waiting_sys_timer(wait)
         # click download button
@@ -317,7 +324,7 @@ def download_gisaid_EpiCoV(
         waiting_sys_timer(wait)
         # agree terms and conditions
         logging.info(" -- agreeing terms and conditions")
-        checkbox = driver.find_element_by_xpath('//input[@class="sys-event-hook"]')
+        checkbox = driver.find_element(By.XPATH, '//input[@class="sys-event-hook"]')
         checkbox.click()
         waiting_sys_timer(wait)
         # click download button
@@ -348,7 +355,7 @@ def download_gisaid_EpiCoV(
         waiting_sys_timer(wait)
         # agree terms and conditions
         logging.info(" -- agreeing terms and conditions")
-        checkbox = driver.find_element_by_xpath('//input[@class="sys-event-hook"]')
+        checkbox = driver.find_element(By.XPATH, '//input[@class="sys-event-hook"]')
         checkbox.click()
         waiting_sys_timer(wait)
         # click download button
@@ -367,16 +374,16 @@ def download_gisaid_EpiCoV(
 
         # go back to main frame
         driver.switch_to.frame(iframe_dl)
-        back_button = driver.find_element_by_xpath('//button[contains(text(), "Back")]')
+        back_button = driver.find_element(By.XPATH, '//button[contains(text(), "Back")]')
         back_button.click()
 
         driver.switch_to.default_content()
         waiting_sys_timer(wait)
-    
+
     if cs or ce or ss or se or loc:
-        logging.info("Browsing EpiCoV...")
+        logging.info("Searching in EpiCoV...")
         browse_tab = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, '//*[contains(text(), "Browse")]')))
+            (By.XPATH, '//*[contains(text(), "Search")]')))
         browse_tab.click()
         waiting_sys_timer(wait)
         waiting_table_to_get_ready(wait)
@@ -384,58 +391,74 @@ def download_gisaid_EpiCoV(
         # set location
         if loc:
             logging.info("Setting location...")
-            loc_input = driver.find_element_by_xpath(
-                "//td/div[contains(text(), 'Location')]/../following-sibling::td/div/div/input"
-            )
+            loc_input = driver.find_element(By.XPATH, "//input[@id='ce_rtcuuk_aj_entry']")
             loc_input.send_keys(loc)
-            waiting_sys_timer(wait, 7)
+            waiting_sys_timer(wait, 5)
 
         # set host
         if host:
             logging.info("Setting host...")
-            host_input = driver.find_element_by_xpath(
-                "//td/div[contains(text(), 'Host')]/../following-sibling::td/div/div/input"
-            )
+            host_input = driver.find_element(By.XPATH, "//input[@id='ce_rtcuuk_ak_entry']")
             host_input.send_keys(host)
-            waiting_sys_timer(wait, 7)
+            waiting_sys_timer(wait, 5)
 
         # set dates
-        date_inputs = driver.find_elements_by_css_selector(
-            "div.sys-form-fi-date input")
-        dates = (cs, ce, ss, se)
-        for dinput, date in zip(date_inputs, dates):
-            if date:
-                logging.info("Setting date...")
-                dinput.send_keys(date)
+        if ss:
+            logging.info("Setting submissions start date...")
+            ss_input = driver.find_element(By.CSS_SELECTOR, "#ce_rtcuuk_an_input")
+            ss_input.send_keys(ss)
+            waiting_sys_timer(wait, 5)
+            # Find an element that is not part of the datepicker and click on it to close the datepicker
+            banner_element = driver.find_element(By.XPATH, "//img[@id='the_banner']")
+            banner_element.click()
 
-        ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-        waiting_sys_timer(wait, 7)
+        if se:
+            logging.info("Setting submissions end date...")
+            se_input = driver.find_element(By.CSS_SELECTOR, "#ce_rtcuuk_ao_input")
+            se_input.send_keys(se)
+            waiting_sys_timer(wait, 5)
+            # Find an element that is not part of the datepicker and click on it to close the datepicker
+            banner_element = driver.find_element(By.XPATH, "//img[@id='the_banner']")
+            banner_element.click()
+
+        # set variant
+        if voc:
+            logging.info("Setting variant...")
+            voc_input = driver.find_element(By.XPATH, "//select[@id='ce_rtcuuk_ar_select']")
+            voc_select = Select(voc_input)
+            options = voc_select.options
+            for option in options:
+                if option.get_attribute('value') == voc:
+                    option.click()
+                    logging.info("Selected {}...".format(option.text))
+                    break
+            waiting_sys_timer(wait, 5)
 
         # complete genome only
         if cg:
-            logging.info("complete genome only...")
-            checkbox = driver.find_element_by_xpath('//input[@value="complete"]')
+            logging.info("Complete genome only...")
+            checkbox = driver.find_element(By.XPATH, '//input[@value="complete"]')
             checkbox.click()
             waiting_sys_timer(wait)
 
         # high coverage only
         if hc:
-            logging.info("high coverage only...")
-            checkbox = driver.find_element_by_xpath('//input[@value="highq"]')
+            logging.info("High coverage only...")
+            checkbox = driver.find_element(By.XPATH, '//input[@value="highq"]')
             checkbox.click()
             waiting_sys_timer(wait)
 
         # excluding low coverage
         if le:
-            logging.info("low coverage excluding...")
-            checkbox = driver.find_element_by_xpath('//input[@value="lowco"]')
+            logging.info("Low coverage excluding...")
+            checkbox = driver.find_element(By.XPATH, '//input[@value="lowco"]')
             checkbox.click()
             waiting_sys_timer(wait)
 
         # check if any genomes pass filters
         warning_message = None
         try:
-            warning_message = driver.find_element_by_xpath("//div[contains(text(), 'No data found.')]")
+            warning_message = driver.find_element(By.XPATH, "//div[contains(text(), 'No data found.')]")
         except:
             pass
         if warning_message:
@@ -443,51 +466,69 @@ def download_gisaid_EpiCoV(
             sys.exit(1)
 
         # select all genomes
-        logging.info("Selecting all genomes...")
-        button_sa = driver.find_element_by_css_selector("span.yui-dt-label input")
-        button_sa.click()
+        num_genomes = driver.find_element(By.CSS_SELECTOR, "#c_rtcuuk_jd4_leftinfo")
+        logging.info("Selecting {}...".format(num_genomes.text))
+        select_all_checkbox = driver.find_element(By.CSS_SELECTOR, "span.yui-dt-label input")
+        select_all_checkbox.click()
         waiting_sys_timer(wait)
 
-        # downloading sequence data
-        num_download_options = 1
-        current_option = 0
 
-        retry = 0
-        while retry <= rt and current_option < num_download_options:
-            try:
-                logging.info("Downloading sequences for selected genomes...")
-                button = driver.find_element_by_xpath(
-                    "//td[@class='sys-datatable-info']/button[contains(text(), 'Download')]")
-                button.click()
-                waiting_sys_timer(wait)
 
-                # switch to iframe
-                iframe = waiting_for_iframe(wait, driver, rt, iv)
-                driver.switch_to.frame(iframe)
-                waiting_sys_timer(wait)
-                
-                # selecting options
-                labels = driver.find_elements_by_xpath("//label")
-                num_download_options = len(labels)
-                labels[current_option].click()
-                current_option += 1
+        try:
+            logging.info("Downloading sequences for selected genomes...")
+            button = driver.find_element(By.XPATH, "//button[contains(text(), 'Download')]")
+            button.click()
+            waiting_sys_timer(wait)
 
-                button = driver.find_element_by_xpath(
-                    "//button[contains(text(), 'Download')]")
-                button.click()
-                waiting_sys_timer(wait)
-                driver.switch_to.default_content()
+            # switch to iframe
+            logging.info("Switching to data selection iframe...")
+            iframe = waiting_for_iframe(wait, driver, rt, iv)
+            driver.switch_to.frame(iframe)
+            waiting_sys_timer(wait)
 
-                fn = wait_downloaded_filename(wait, driver, 1800)
-                logging.info(f"Downloaded to {fn}.")
-            except:
-                logging.info(f"retrying...#{retry} in {iv} sec(s)")
-                if retry == rt:
-                    logging.error("Unexpected error:", sys.exc_info())
-                    sys.exit(1)
-                else:
-                    time.sleep(iv)
-                    retry += 1
+            # selecting options
+            # labels = driver.find_elements(By.XPATH, "//label")
+            # num_download_options = len(labels)
+            # labels[current_option].click()
+            # current_option += 1
+
+
+            logging.info("Selecting FASTA files...")
+            select_fasta = driver.find_element(By.XPATH, "//input[@id='ce_rtcuuk_mv_3']")
+            select_fasta.click()
+            waiting_sys_timer(wait)
+
+            logging.info("Clicking download button...")
+            download_btn = driver.find_element(By.XPATH, "//button[contains(text(), 'Download')]")
+            download_btn.click()
+            waiting_sys_timer(wait)
+
+            # switch back to default page and then to agreement iframe
+            logging.info("Switching back to default page...")
+            driver.switch_to.default_content()
+            logging.info("Switching to agreement iframe...")
+            iframe = waiting_for_iframe(wait, driver, rt, iv)
+            driver.switch_to.frame(iframe)
+            waiting_sys_timer(wait)
+
+            logging.info("Accepting terms of use...")
+            agree_checkbox = driver.find_element(By.NAME, "ce_rtcuuk_rl_name")
+            agree_checkbox.click()
+            waiting_sys_timer(wait)
+
+            logging.info("Clicking download button again...")
+            download_btn_2 = driver.find_element(By.XPATH, "//button[contains(text(), 'Download')]")
+            download_btn_2.click()
+            waiting_sys_timer(wait)
+
+            logging.info("Switching back to default page...")
+            driver.switch_to.default_content()
+
+            fn = wait_downloaded_filename(wait, driver, 1800)
+            logging.info(f"Downloaded to {fn}.")
+        except:
+            logging.error("Unexpected error:", sys.exc_info())
+            sys.exit(1)
 
     # close driver
     driver.quit()
@@ -496,14 +537,14 @@ def download_gisaid_EpiCoV(
 def getMetadata(record_elem):
     """parse out metadata from the table"""
     meta = {}
-    table = record_elem.find_element_by_tag_name("table")
+    table = record_elem.find_element(By.TAG_NAME, "table")
     last_attr = ""
-    for tr in table.find_elements_by_tag_name("tr"):
+    for tr in table.find_elements(By.TAG_NAME, "tr"):
         if tr.get_attribute("colspan") == "2":
             # skip titles
             continue
         else:
-            tds = tr.find_elements_by_tag_name("td")
+            tds = tr.find_elements(By.TAG_NAME, "td")
             if len(tds) == 2:
                 attr = tds[0].text.strip(":")
                 val = tds[1].text
@@ -538,7 +579,7 @@ def waiting_for_iframe(wait, driver, rt, iv):
     while retry <= rt:
         try:
             wait.until(EC.presence_of_element_located((By.XPATH, "//iframe")))
-            iframe = driver.find_element_by_xpath("//iframe")
+            iframe = driver.find_element(By.XPATH, "//iframe")
             if iframe:
                 return iframe
             else:
@@ -606,6 +647,7 @@ def main():
         argvs.colend,
         argvs.substart,
         argvs.subend,
+        argvs.variant,
         argvs.complete,
         argvs.highcoverage,
         argvs.lowcoverageExcl,
