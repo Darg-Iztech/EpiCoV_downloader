@@ -387,44 +387,56 @@ def download_gisaid_EpiCoV(
         browse_tab.click()
         waiting_sys_timer(wait)
         waiting_table_to_get_ready(wait)
+        num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+        logging.info("{}...".format(num_genomes.text))
 
         # set location
         if loc:
             logging.info("Setting location...")
-            loc_input = driver.find_element(By.XPATH, "//input[@id='ce_rtcuuk_aj_entry']")
+            loc_input = driver.find_element(By.XPATH, '//div[text()="Location"]/../following-sibling::td//input')
             loc_input.send_keys(loc)
             waiting_sys_timer(wait, 5)
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # set host
         if host:
             logging.info("Setting host...")
-            host_input = driver.find_element(By.XPATH, "//input[@id='ce_rtcuuk_ak_entry']")
+            host_input = driver.find_element(By.XPATH, '//div[text()="Host"]/../following-sibling::td//input')
             host_input.send_keys(host)
             waiting_sys_timer(wait, 5)
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # set dates
+        if ss or se:
+            date_inputs = driver.find_elements(By.CSS_SELECTOR, "div.sys-form-fi-date input")
         if ss:
             logging.info("Setting submissions start date...")
-            ss_input = driver.find_element(By.CSS_SELECTOR, "#ce_rtcuuk_an_input")
+            ss_input = date_inputs[2] # 2nd input is the submission start date
             ss_input.send_keys(ss)
             waiting_sys_timer(wait, 5)
             # Find an element that is not part of the datepicker and click on it to close the datepicker
             banner_element = driver.find_element(By.XPATH, "//img[@id='the_banner']")
             banner_element.click()
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         if se:
             logging.info("Setting submissions end date...")
-            se_input = driver.find_element(By.CSS_SELECTOR, "#ce_rtcuuk_ao_input")
+            se_input = date_inputs[3] # 3rd input is the submission end date
             se_input.send_keys(se)
             waiting_sys_timer(wait, 5)
             # Find an element that is not part of the datepicker and click on it to close the datepicker
             banner_element = driver.find_element(By.XPATH, "//img[@id='the_banner']")
             banner_element.click()
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # set variant
         if voc:
             logging.info("Setting variant...")
-            voc_input = driver.find_element(By.XPATH, "//select[@id='ce_rtcuuk_ar_select']")
+            voc_input = driver.find_element(By.XPATH, '//div[text()="Variant"]/./following-sibling::div//select')
             voc_select = Select(voc_input)
             options = voc_select.options
             for option in options:
@@ -433,6 +445,8 @@ def download_gisaid_EpiCoV(
                     logging.info("Selected {}...".format(option.text))
                     break
             waiting_sys_timer(wait, 5)
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # complete genome only
         if cg:
@@ -440,6 +454,8 @@ def download_gisaid_EpiCoV(
             checkbox = driver.find_element(By.XPATH, '//input[@value="complete"]')
             checkbox.click()
             waiting_sys_timer(wait)
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # high coverage only
         if hc:
@@ -447,6 +463,8 @@ def download_gisaid_EpiCoV(
             checkbox = driver.find_element(By.XPATH, '//input[@value="highq"]')
             checkbox.click()
             waiting_sys_timer(wait)
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # excluding low coverage
         if le:
@@ -454,6 +472,8 @@ def download_gisaid_EpiCoV(
             checkbox = driver.find_element(By.XPATH, '//input[@value="lowco"]')
             checkbox.click()
             waiting_sys_timer(wait)
+            num_genomes = driver.find_element(By.CSS_SELECTOR, "div.sys-datatable-info-left span")
+            logging.info("{}...".format(num_genomes.text))
 
         # check if any genomes pass filters
         warning_message = None
@@ -466,13 +486,9 @@ def download_gisaid_EpiCoV(
             sys.exit(1)
 
         # select all genomes
-        num_genomes = driver.find_element(By.CSS_SELECTOR, "#c_rtcuuk_jd4_leftinfo")
-        logging.info("Selecting {}...".format(num_genomes.text))
         select_all_checkbox = driver.find_element(By.CSS_SELECTOR, "span.yui-dt-label input")
         select_all_checkbox.click()
         waiting_sys_timer(wait)
-
-
 
         try:
             logging.info("Downloading sequences for selected genomes...")
@@ -492,9 +508,8 @@ def download_gisaid_EpiCoV(
             # labels[current_option].click()
             # current_option += 1
 
-
             logging.info("Selecting FASTA files...")
-            select_fasta = driver.find_element(By.XPATH, "//input[@id='ce_rtcuuk_mv_3']")
+            select_fasta = driver.find_element(By.XPATH, "//label[contains(text(),'Nucleotide Sequences (FASTA)')]/../input")
             select_fasta.click()
             waiting_sys_timer(wait)
 
@@ -512,7 +527,7 @@ def download_gisaid_EpiCoV(
             waiting_sys_timer(wait)
 
             logging.info("Accepting terms of use...")
-            agree_checkbox = driver.find_element(By.NAME, "ce_rtcuuk_rl_name")
+            agree_checkbox = driver.find_element(By.XPATH, "//span[contains(text(),'I agree to the terms and conditions')]/../input")
             agree_checkbox.click()
             waiting_sys_timer(wait)
 
